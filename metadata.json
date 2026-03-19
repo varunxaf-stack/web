@@ -1,0 +1,5 @@
+{
+  "name": "Nirbhaya Shield",
+  "description": "A premium personal safety emergency alert app with voice trigger detection and trusted circle notifications.",
+  "requestFramePermissions": ["microphone", "geolocation"]
+}

@@ -1,0 +1,145 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: userId (Auth UID)
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - displayName: string (optional)
+    //   - email: string (required, format: email)
+    //   - photoURL: string (optional)
+    //   - phoneNumber: string (optional)
+    //   - onboardingComplete: bool (optional)
+    //   - createdAt: timestamp (required)
+    //   - updatedAt: timestamp (required)
+    //
+    // Collection: /users/{userId}/contacts/{contactId}
+    // Fields:
+    //   - userId: string (required, immutable)
+    //   - name: string (required, max: 100)
+    //   - relation: string (optional)
+    //   - phone: string (required, format: phone)
+    //   - whatsapp: string (optional)
+    //   - email: string (optional)
+    //   - priority: int (optional)
+    //   - enabled: bool (required)
+    //   - preferredMethod: string (enum: call, whatsapp, sms)
+    //
+    // Collection: /users/{userId}/triggers/{triggerId}
+    // Fields:
+    //   - userId: string (required, immutable)
+    //   - text: string (required, max: 50)
+    //   - repetitionCount: int (required, min: 1, max: 10)
+    //   - timeWindow: int (required, min: 1, max: 60)
+    //   - sensitivity: number (required, min: 0, max: 1)
+    //   - enabled: bool (required)
+    //
+    // Collection: /users/{userId}/alerts/{alertId}
+    // Fields:
+    //   - userId: string (required, immutable)
+    //   - timestamp: timestamp (required)
+    //   - location: map (lat, lng, accuracy)
+    //   - triggerPhrase: string (optional)
+    //   - status: string (enum: triggered, cancelled, notified, failed)
+    //   - recipients: list (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "varunxaf@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return data.uid is string &&
+             data.email is string && isValidEmail(data.email) &&
+             (data.displayName == null || (data.displayName is string && data.displayName.size() < 100)) &&
+             (data.photoURL == null || (data.photoURL is string && data.photoURL.size() < 500));
+    }
+
+    function isValidContact(data) {
+      return data.userId is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.phone is string && data.phone.size() > 0 && data.phone.size() < 20 &&
+             data.enabled is bool &&
+             (data.preferredMethod in ['call', 'whatsapp', 'sms']);
+    }
+
+    function isValidTrigger(data) {
+      return data.userId is string &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 50 &&
+             data.repetitionCount is int && data.repetitionCount >= 1 && data.repetitionCount <= 10 &&
+             data.timeWindow is int && data.timeWindow >= 1 && data.timeWindow <= 60 &&
+             data.sensitivity is number && data.sensitivity >= 0 && data.sensitivity <= 1 &&
+             data.enabled is bool;
+    }
+
+    function isValidAlert(data) {
+      return data.userId is string &&
+             data.timestamp is timestamp &&
+             data.status in ['triggered', 'cancelled', 'notified', 'failed'];
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == resource.data.uid;
+      allow delete: if isAdmin();
+
+      match /contacts/{contactId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidContact(request.resource.data) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && isValidContact(request.resource.data) && request.resource.data.userId == userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /triggers/{triggerId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidTrigger(request.resource.data) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && isValidTrigger(request.resource.data) && request.resource.data.userId == userId;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /alerts/{alertId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidAlert(request.resource.data) && request.resource.data.userId == userId;
+        allow update: if isOwner(userId) && isValidAlert(request.resource.data) && request.resource.data.userId == userId;
+        allow delete: if isAdmin();
+      }
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user identification and global settings.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "photoURL": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "onboardingComplete": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "EmergencyContact": {
+      "title": "Emergency Contact",
+      "description": "A trusted person to be notified in case of emergency.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "relation": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "priority": { "type": "integer" },
+        "enabled": { "type": "boolean" },
+        "preferredMethod": { "type": "string", "enum": ["call", "whatsapp", "sms"] }
+      },
+      "required": ["userId", "name", "phone"]
+    },
+    "TriggerPhrase": {
+      "title": "Trigger Phrase",
+      "description": "A phrase that triggers an SOS alert when detected.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "repetitionCount": { "type": "integer" },
+        "timeWindow": { "type": "integer", "description": "Time window in seconds" },
+        "sensitivity": { "type": "number" },
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["userId", "text", "repetitionCount", "timeWindow"]
+    },
+    "AlertEvent": {
+      "title": "Alert Event",
+      "description": "A record of an SOS alert being triggered.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "accuracy": { "type": "number" }
+          }
+        },
+        "triggerPhrase": { "type": "string" },
+        "status": { "type": "string", "enum": ["triggered", "cancelled", "notified", "failed"] },
+        "recipients": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["userId", "timestamp", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile data."
+    },
+    "/users/{userId}/contacts/{contactId}": {
+      "schema": "EmergencyContact",
+      "description": "User's emergency contacts."
+    },
+    "/users/{userId}/triggers/{triggerId}": {
+      "schema": "TriggerPhrase",
+      "description": "User's custom trigger phrases."
+    },
+    "/users/{userId}/alerts/{alertId}": {
+      "schema": "AlertEvent",
+      "description": "History of alerts for a user."
+    }
+  }
+}
